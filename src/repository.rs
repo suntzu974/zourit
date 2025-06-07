@@ -1,6 +1,7 @@
 use rusqlite::{Connection, Result};
 use serde::{Deserialize, Serialize};
 
+#[allow(dead_code)]
 pub trait Repository<T, CreateT, UpdateT> 
 where 
     T: Clone + Serialize,
