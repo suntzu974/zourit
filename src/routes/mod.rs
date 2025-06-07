@@ -1,4 +1,3 @@
-pub mod person_routes;
 pub mod product_routes;
 
 use askama::Template;
@@ -8,6 +7,8 @@ use std::collections::HashMap;
 use crate::database::SharedConnection;
 use crate::templates::IndexTemplate;
 
+
+
 async fn index(Query(params): Query<HashMap<String, String>>) -> Result<Html<String>, Json<Value>> {
     // Check if client wants HTML or JSON
     if params.get("format").map(|s| s.as_str()) == Some("json") {
@@ -15,7 +16,6 @@ async fn index(Query(params): Query<HashMap<String, String>>) -> Result<Html<Str
             "message": "Welcome to Zourit API",
             "version": "1.0.0",
             "endpoints": {
-                "persons": "/persons",
                 "products": "/products"
             }
         })))
@@ -28,6 +28,5 @@ async fn index(Query(params): Query<HashMap<String, String>>) -> Result<Html<Str
 pub fn create_router() -> Router<SharedConnection> {
     Router::new()
         .route("/", get(index))
-        .merge(person_routes::create_person_routes())
         .merge(product_routes::create_product_routes())
 }

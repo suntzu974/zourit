@@ -3,16 +3,15 @@ mod repository;
 mod handlers;
 mod routes;
 mod database;
-mod templates;
 mod entity;
+mod templates;
 
-use axum::Router;
 use tower_http::cors::CorsLayer;
 use database::Database;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let shared_conn = Database::create_shared_connection("example.db")?;
+    let shared_conn = Database::create_shared_connection("zourit.db")?;
     
     let app = routes::create_router()
         .layer(CorsLayer::permissive())
