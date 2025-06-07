@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Persons - Zourit API</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; background-color: #f5f5f5; }
+        .container { max-width: 1000px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h1 { color: #333; border-bottom: 3px solid #007acc; padding-bottom: 10px; }
+        .person-card { background: #f8f9fa; padding: 15px; margin: 10px 0; border-left: 4px solid #007acc; border-radius: 4px; }
+        .person-info { display: flex; justify-content: space-between; align-items: center; }
+        .person-details h3 { margin: 0; color: #333; }
+        .person-details p { margin: 5px 0; color: #666; }
+        .actions a { margin: 0 5px; padding: 5px 10px; text-decoration: none; border-radius: 3px; }
+        .edit { background: #28a745; color: white; }
+        .delete { background: #dc3545; color: white; }
+        .add-btn { background: #007acc; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; margin-bottom: 20px; display: inline-block; }
+        .back-btn { background: #6c757d; color: white; padding: 8px 15px; text-decoration: none; border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/" class="back-btn">← Back to Home</a>
+        <h1>Persons ({{ persons }})</h1>
+        
+        <a href="/persons/new" class="add-btn">+ Add New Person</a>
+        
+        {% if persons.is_empty() %}
+            <p>No persons found. <a href="/persons/new">Add the first person</a>.</p>
+        {% else %}
+            {% for person in persons %}
+            <div class="person-card">
+                <div class="person-info">
+                    <div class="person-details">
+                        <h3>{{ person.name }}</h3>
+                        <p><strong>Email:</strong> {{ person.email }}</p>
+                        <p><strong>Age:</strong> {{ person.age }}</p>
+                        <p><strong>ID:</strong> {{ person.id.unwrap_or(0) }}</p>
+                    </div>
+                    <div class="actions">
+                        <a href="/persons/{{ person.id.unwrap_or(0) }}" class="edit">View</a>
+                        <a href="/persons/{{ person.id.unwrap_or(0) }}/edit" class="edit">Edit</a>
+                        <a href="/persons/{{ person.id.unwrap_or(0) }}/delete" class="delete" onclick="return confirm('Are you sure?')">Delete</a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        {% endif %}
+    </div>
+</body>
+</html>

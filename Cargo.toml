@@ -1,0 +1,17 @@
+[package]
+name = "zourit"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+rusqlite = { version = "0.35.0", features = ["bundled"] }
+axum = "0.8.4"
+tokio = { version = "1.0", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tower = { version = "0.5.2", features = ["full"] }
+tower-http = { version = "0.6.4", features = ["cors"] }
+askama = "0.14.0"
+askama_axum = "0.4"
+either = "1.15.0"
+filters = "0.4.0"
