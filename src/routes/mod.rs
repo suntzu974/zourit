@@ -1,4 +1,5 @@
 pub mod product_routes;
+pub mod auth_routes;
 
 use askama::Template;
 use axum::{Router, Json, routing::get, response::Html, extract::Query};
@@ -6,6 +7,7 @@ use serde_json::{json, Value};
 use std::collections::HashMap;
 use crate::database::SharedConnection;
 use crate::templates::IndexTemplate;
+// Auth routes moved to auth_routes.rs
 
 
 
@@ -29,4 +31,5 @@ pub fn create_router() -> Router<SharedConnection> {
     Router::new()
         .route("/", get(index))
         .merge(product_routes::create_product_routes())
+        .merge(auth_routes::create_auth_routes())
 }

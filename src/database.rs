@@ -1,6 +1,7 @@
 use rusqlite::{Connection, Result};
 use std::sync::{Arc, Mutex};
 use crate::models::{Product};
+use crate::auth::User;
 
 pub type SharedConnection = Arc<Mutex<Connection>>;
 
@@ -19,6 +20,7 @@ impl Database {
 
     pub fn create_tables(conn: &Connection) -> Result<()> {
         Product::create_table(conn)?;
+    User::create_table(conn)?;
         Ok(())
     }
 }

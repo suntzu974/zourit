@@ -11,6 +11,8 @@ A RESTful API built with Rust using Axum web framework, SQLite database, and Ask
 - 🔧 **SOLID Principles**: Clean architecture with proper separation of concerns
 - 🎯 **Content Negotiation**: Supports both JSON and HTML responses
 - 📝 **Form Support**: Web forms for creating and managing entities
+- 🔐 **Authentication**: JWT-based register/login
+- 🔒 **Authorization**: Role check (admin required for destructive operations)
 
 ## API Endpoints
 
@@ -25,6 +27,13 @@ A RESTful API built with Rust using Axum web framework, SQLite database, and Ask
 ### General
 - `GET /` - API welcome page with endpoints documentation
 
+### Auth
+- `POST /auth/register` - Register user, returns JWT (role user)
+- `POST /auth/login` - Login, returns JWT
+- `GET /auth/me` - Get current user (requires Bearer token)
+- `GET /auth/refresh` - Issue a new JWT (requires valid token)
+- `GET /auth/users` - List users (admin role required)
+
 ## Content Negotiation
 
 The API supports both JSON and HTML responses:
@@ -35,24 +44,22 @@ The API supports both JSON and HTML responses:
 
 ```
 src/
-├── main.rs              # Application entry point
-├── database.rs          # Database connection and setup
-├── repository.rs        # Repository trait definition
-├── entity.rs           # Generic entity operations
-├── models/             # Data models
-│   ├── mod.rs
-│   ├── person.rs       # Person model and database operations
-│   └── product.rs      # Product model and database operations
-├── handlers/           # Request handlers
-│   ├── mod.rs
-│   ├── person_handler.rs
-│   └── product_handler.rs
-├── routes/             # Route definitions
-│   ├── mod.rs
-│   ├── person_routes.rs
-│   └── product_routes.rs
-└── templates/          # Askama template structs
-    └── mod.rs
+├── main.rs              # Application entry point (loads .env)
+├── database.rs          # DB connection + table creation
+├── repository.rs        # Generic repository trait
+├── entity.rs            # Generic CRUD helpers (create/get/update/delete)
+├── auth.rs              # JWT + password hashing (argon2) + user model
+├── middleware.rs        # Auth & admin middlewares
+├── models/              # Data models (domain + DTO)
+│   └── product.rs
+├── handlers/            # HTTP handlers (products, auth)
+│   ├── product_handler.rs
+│   └── auth_handler.rs
+├── routes/              # Route groups
+│   ├── mod.rs           # Root router assembly
+│   ├── product_routes.rs
+│   └── auth_routes.rs   # Auth routes (register/login/me/...)
+└── templates/           # Askama template structs & HTML
 templates/              # HTML templates
 ├── index.html          # Welcome page
 └── persons/
@@ -94,6 +101,16 @@ Run with auto-reload:
 ```bash
 cargo watch -x run
 ```
+
+### Configuration (.env)
+
+Create a `.env` file (see `.env.example`):
+```
+JWT_SECRET=PLEASE_CHANGE_THIS_SECRET
+DATABASE_PATH=zourit.db
+PORT=3000
+```
+Environment variables are loaded via `dotenv` in `main.rs`.
 
 ## Dependencies
 
@@ -205,19 +222,45 @@ Supprimer :
 curl -X DELETE http://localhost:3000/products/1 -i
 ```
 
-## Examples
+### Auth Examples
 
-### Create a Person (JSON)
+Register:
 ```bash
-curl -X POST http://localhost:3000/persons \
+curl -X POST http://localhost:3000/auth/register \
   -H "Content-Type: application/json" \
-  -d '{"name": "John Doe", "email": "john@example.com", "age": 30}'
+  -d '{"username":"alice","password":"Secret123!"}'
 ```
 
-### Get All Persons (JSON)
+Login:
 ```bash
-curl http://localhost:3000/persons?format=json
+curl -X POST http://localhost:3000/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"alice","password":"Secret123!"}'
 ```
+
+Use token:
+```bash
+TOKEN=... # JWT from login
+curl http://localhost:3000/auth/me -H "Authorization: Bearer $TOKEN"
+```
+
+Refresh token:
+```bash
+curl http://localhost:3000/auth/refresh -H "Authorization: Bearer $TOKEN"
+```
+
+List users (admin only):
+```bash
+curl http://localhost:3000/auth/users -H "Authorization: Bearer $ADMIN_TOKEN"
+```
+
+#### Roles
+
+- Default registered users have role `user`.
+- Admin-only endpoints (`/auth/users`, product deletion) require `role == "admin"`.
+- (Current implementation: promote a user manually in the SQLite DB by updating the `role` column to `admin`).
+
+## Examples
 
 ### Web Interface
 Visit `http://localhost:3000` in your browser to use the HTML interface.
@@ -236,10 +279,10 @@ This project is open source and available under the MIT License.
 
 ## Future Enhancements
 
-- [ ] Authentication and authorization
 - [ ] Database migrations
 - [ ] API versioning
 - [ ] OpenAPI/Swagger documentation
 - [ ] Docker containerization
 - [ ] Unit and integration tests
 - [ ] Logging and monitoring
+- [ ] Admin promotion endpoint / user roles management UI
