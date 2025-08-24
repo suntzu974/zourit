@@ -122,6 +122,89 @@ This project follows SOLID principles:
 4. **Routes**: URL routing and organization
 5. **Templates**: HTML view generation
 
+### Generic Repository & Entity Pattern
+
+Le cœur de l'architecture de persistance repose sur deux traits génériques :
+
+1. `Repository<T, CreateT, UpdateT>` : définit les opérations CRUD que chaque modèle doit implémenter (création de table, insertion, recherche, mise à jour partielle, suppression).
+2. `Entity` : relie le type domaine (`T`) à ses DTO d'entrée (`CreateType` et `UpdateType`) et fournit une fabrique `new_from_create`.
+
+Généricité utilisée dans les handlers (`src/entity.rs`) :
+
+```rust
+pub async fn create_entity<T, CreateT, UpdateT>(...) -> Result<Json<T>, StatusCode>
+where
+    T: Repository<T, CreateT, UpdateT> + ...,
+    T: Entity<CreateType = CreateT>
+```
+
+Ainsi un même code gère création / lecture / mise à jour / suppression pour n'importe quel modèle implémentant ces traits (DRY et facile à étendre).
+
+#### Rôle de CreateT vs UpdateT
+
+| Type | Objectif | Champs | Exemple Product |
+|------|----------|--------|-----------------|
+| `CreateT` | Données nécessaires à la création | Tous requis (sauf id auto) | `CreateProduct { name, description, price, quantity }` |
+| `UpdateT` | Mise à jour partielle (PATCH-like) | Tous optionnels (`Option<T>`) | `UpdateProduct { name: Option<String>, ... }` |
+
+Avantages :
+- Empêche l'utilisateur d'envoyer un `id` à la création
+- Permet des mises à jour partielles sans payload complet
+- Clarifie les invariants (un produit créé est toujours complet)
+
+#### Exemple concret (Product)
+
+Définition (extrait de `models/product.rs`) :
+```rust
+#[derive(Debug, Deserialize)]
+pub struct CreateProduct { name: String, description: String, price: f64, quantity: i32 }
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateProduct { 
+    name: Option<String>,
+    description: Option<String>,
+    price: Option<f64>,
+    quantity: Option<i32>,
+}
+```
+
+#### Flux de création
+1. Le JSON est désérialisé en `CreateProduct`
+2. `create_entity` appelle `Product::new_from_create(...)`
+3. `insert` affecte l'`id` généré
+4. L'objet complet est renvoyé en JSON
+
+#### Flux de mise à jour
+1. Le JSON partiel devient `UpdateProduct`
+2. `update_entity` charge l'enregistrement + applique seulement les `Some(...)`
+3. Écrit en base puis renvoie l'état à jour
+
+### Exemples API Produit
+
+Créer un produit :
+```bash
+curl -X POST http://localhost:3000/products \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Laptop","description":"Ultrabook 14","price":1299.99,"quantity":5}'
+```
+
+Mettre à jour seulement le prix et le stock :
+```bash
+curl -X PUT http://localhost:3000/products/1 \
+  -H "Content-Type: application/json" \
+  -d '{"price":1199.00,"quantity":7}'
+```
+
+Récupérer tous les produits en JSON :
+```bash
+curl http://localhost:3000/products?format=json
+```
+
+Supprimer :
+```bash
+curl -X DELETE http://localhost:3000/products/1 -i
+```
+
 ## Examples
 
 ### Create a Person (JSON)
