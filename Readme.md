@@ -13,6 +13,8 @@ A RESTful API built with Rust using Axum web framework, SQLite database, and Ask
 - 📝 **Form Support**: Web forms for creating and managing entities
 - 🔐 **Authentication**: JWT-based register/login
 - 🔒 **Authorization**: Role check (admin required for destructive operations)
+- 🗂 **Migrations**: File-based SQL migrations auto-applied at startup
+- 👥 **Admin UI**: Minimal HTML user management (promote/demote roles)
 
 ## API Endpoints
 
@@ -294,6 +296,30 @@ curl -X POST http://localhost:3000/auth/admin \
 - Admin-only endpoints (`/auth/users`, product deletion) require `role == "admin"`.
 - (Current implementation: promote a user manually in the SQLite DB by updating the `role` column to `admin`).
 
+### Admin UI
+
+HTML interface (requires admin JWT in browser via Authorization header set by an extension / reverse proxy or by using a tool that injects headers):
+- `GET /admin/users` – list users & current roles
+- `POST /admin/users/{id}/role` – promote/demote via HTML form (values: `admin` or `user`)
+
+Security hardening applied:
+- CSRF protection: double-submit cookie pattern. A `csrf_token` HttpOnly, SameSite=Strict cookie is set; each form submits a matching hidden field. Mismatch (or absence) returns 403.
+- SameSite=Strict prevents most cross-site navigational requests from including the cookie; token randomness (32 chars alphanumeric) mitigates guessing.
+
+Limitations / next steps:
+- No confirmation modal
+- JWT still provided via header (consider session cookies with secure + httpOnly for production)
+- No pagination/search yet
+
+### Security Notes
+
+- Change `JWT_SECRET` in production (never commit real secret)
+- Use a stronger secret: at least 32 random bytes (e.g. `openssl rand -hex 32`)
+- First admin bootstrap: `POST /auth/admin` (unauthenticated only if no admin exists)
+- Always serve behind HTTPS in production
+- Add rate limiting & logging for brute-force mitigation (not yet implemented)
+- CSRF protection implemented for admin role change form (double-submit cookie)
+
 ## Examples
 
 ### Web Interface
@@ -313,10 +339,14 @@ This project is open source and available under the MIT License.
 
 ## Future Enhancements
 
-- [ ] Database migrations
+- [x] Database migrations
 - [ ] API versioning
 - [ ] OpenAPI/Swagger documentation
 - [ ] Docker containerization
 - [ ] Unit and integration tests
 - [ ] Logging and monitoring
 - [ ] Admin promotion endpoint / user roles management UI
+  - [ ] Pagination & search
+  - [x] CSRF protection
+  - [ ] Audit logging (role change history)
+  - [ ] UI auth flow (token injection or session cookies)

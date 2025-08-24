@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>User Management</title>
+<style>
+ body { font-family: Arial, sans-serif; margin: 30px; background:#fafafa; }
+ h1 { border-bottom:2px solid #007acc; padding-bottom:6px; }
+ table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+ th, td { padding: 8px 10px; border:1px solid #ddd; }
+ th { background:#f0f4f8; text-align:left; }
+ form.inline { display:inline; margin:0; }
+ .role-badge { padding:2px 6px; border-radius:4px; font-size:12px; background:#eee; }
+ .role-admin { background:#ffb347; }
+ .flash { margin-top:10px; padding:10px; border-radius:4px; }
+ .flash-error { background:#ffe0e0; color:#900; }
+ .flash-ok { background:#e0ffe7; color:#065f26; }
+ a.btn { background:#007acc; color:white; padding:6px 10px; border-radius:4px; text-decoration:none; }
+ a.btn:hover { background:#005a99; }
+ input[type=submit] { cursor:pointer; }
+</style>
+</head>
+<body>
+<h1>User Management</h1>
+<p><a href="/" class="btn">Home</a></p>
+<table>
+<thead>
+<tr><th>ID</th><th>Username</th><th>Role</th><th>Promote/Demote</th></tr>
+</thead>
+<tbody>
+{% for u in users %}
+<tr>
+<td>{{ u.id }}</td>
+<td>{{ u.username }}</td>
+<td><span class="role-badge role-{{ u.role }}">{{ u.role }}</span></td>
+<td>
+  {% if u.role != "admin" %}
+  <form class="inline" method="post" action="/admin/users/{{ u.id }}/role">
+    <input type="hidden" name="role" value="admin" />
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+    <input type="submit" value="Promote -> Admin" />
+  </form>
+  {% else %}
+  <form class="inline" method="post" action="/admin/users/{{ u.id }}/role">
+    <input type="hidden" name="role" value="user" />
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+    <input type="submit" value="Demote to User" />
+  </form>
+  {% endif %}
+</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+</body>
+</html>
+</html>
