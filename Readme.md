@@ -33,6 +33,7 @@ A RESTful API built with Rust using Axum web framework, SQLite database, and Ask
 - `GET /auth/me` - Get current user (requires Bearer token)
 - `GET /auth/refresh` - Issue a new JWT (requires valid token)
 - `GET /auth/users` - List users (admin role required)
+- `POST /auth/admin` - Create admin (bootstrap if none, else admin-only)
 
 ## Content Negotiation
 
@@ -111,6 +112,25 @@ DATABASE_PATH=zourit.db
 PORT=3000
 ```
 Environment variables are loaded via `dotenv` in `main.rs`.
+
+### Database Migrations
+
+Simple file-based migrations are applied automatically at startup:
+- Directory: `migrations/`
+- Files: sequentially named `NNN_description.sql` (e.g. `001_init.sql`)
+- Each file may contain multiple SQL statements separated by semicolons.
+- Applied migrations are recorded in the `_migrations` table.
+
+To add a new migration:
+1. Create `migrations/002_add_field_x.sql`
+2. Put SQL statements (avoid trailing semicolon noise).
+3. Restart the application; it will apply pending files in order.
+
+Example migration file snippet:
+```sql
+ALTER TABLE product ADD COLUMN sku TEXT;
+CREATE INDEX IF NOT EXISTS idx_product_sku ON product(sku);
+```
 
 ## Dependencies
 
@@ -252,6 +272,20 @@ curl http://localhost:3000/auth/refresh -H "Authorization: Bearer $TOKEN"
 List users (admin only):
 ```bash
 curl http://localhost:3000/auth/users -H "Authorization: Bearer $ADMIN_TOKEN"
+```
+
+Create first admin (no token needed if none exists yet):
+```bash
+curl -X POST http://localhost:3000/auth/admin \
+  -H "Content-Type: application/json" \
+  -d '{"username":"root","password":"ChangeMe!123"}'
+```
+Subsequent admin creation requires an existing admin token:
+```bash
+curl -X POST http://localhost:3000/auth/admin \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"username":"ops","password":"AnotherSecret1"}'
 ```
 
 #### Roles

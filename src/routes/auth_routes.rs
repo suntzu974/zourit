@@ -4,7 +4,7 @@ use axum::{
     extract::Extension,
 };
 use crate::database::SharedConnection;
-use crate::handlers::auth_handler::{register, login, refresh_token, list_users, AuthUser};
+use crate::handlers::auth_handler::{register, login, refresh_token, list_users, create_admin, AuthUser};
 use crate::middleware::{auth_middleware, admin_middleware};
 
 // GET /auth/me handler (local to auth routes)
@@ -19,4 +19,5 @@ pub fn create_auth_routes() -> Router<SharedConnection> {
         .route("/auth/me", get(me_user).route_layer(axum::middleware::from_fn(auth_middleware)))
         .route("/auth/refresh", get(refresh_token).route_layer(axum::middleware::from_fn(auth_middleware)))
         .route("/auth/users", get(list_users).route_layer(axum::middleware::from_fn(admin_middleware)))
+    .route("/auth/admin", post(create_admin))
 }
