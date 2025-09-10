@@ -5,7 +5,31 @@ A RESTful API built with Rust using Axum web framework, SQLite database, and Ask
 ## Features
 
 - 🚀 **Fast & Safe**: Built with Rust for performance and memory safety
-- 🌐 **REST API**: Full CRUD operations for Persons and Products
+- 🌐 **REST API**: Full C## Postman Collection
+
+A complete Postman collection is available in the `postman/` directory:
+
+- Import `Zourit API.postman_collection.json` for all API endpoints
+- Import `Zourit Development.postman_environment.json` for environment variables
+- Follow the authentication workflow: Create Admin → Login User → Test endpoints
+- The delete product endpoint requires admin authentication
+
+See `postman/README.md` for detailed usage instructions.
+
+## Future Enhancements
+
+- [x] Database migrations
+- [ ] API versioning
+- [ ] OpenAPI/Swagger documentation
+- [x] Postman API collection
+- [ ] Docker containerization
+- [ ] Unit and integration tests
+- [ ] Logging and monitoring
+- [x] Admin promotion endpoint / user roles management UI
+  - [ ] Pagination & search
+  - [x] CSRF protection
+  - [ ] Audit logging (role change history)
+  - [ ] UI auth flow (token injection or session cookies)s for Persons and Products
 - 🎨 **Web Interface**: HTML templates with Askama for browser interaction
 - 📊 **SQLite Database**: Lightweight, embedded database with rusqlite
 - 🔧 **SOLID Principles**: Clean architecture with proper separation of concerns
