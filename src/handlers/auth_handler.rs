@@ -1,4 +1,5 @@
-use axum::{extract::{State, Extension}, http::StatusCode, Json};
+use axum::{extract::{State, Extension, ConnectInfo}, http::{StatusCode, HeaderMap}, Json};
+use std::net::SocketAddr;
 use serde_json::{json, Value};
 use crate::{database::SharedConnection, auth::{RegisterUser, LoginUser, User, hash_password, verify_password, generate_token}};
 use std::env;
@@ -18,17 +19,46 @@ pub async fn register(State(conn): State<SharedConnection>, Json(payload): Json<
     Ok(Json(json!({"token": token, "role": user.role})))
 }
 
-pub async fn login(State(conn): State<SharedConnection>, Json(payload): Json<LoginUser>) -> Result<Json<Value>, StatusCode> {
+pub async fn login(
+    State(conn): State<SharedConnection>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    Json(payload): Json<LoginUser>
+) -> Result<Json<Value>, StatusCode> {
     let secret = env::var("JWT_SECRET").unwrap_or_else(|_| DEFAULT_SECRET.to_string());
     let conn = conn.lock().unwrap();
+    // Gather client info
+    let ip = addr.ip();
+    let user_agent = headers.get(axum::http::header::USER_AGENT).and_then(|v| v.to_str().ok()).unwrap_or("<unknown>");
+    let host_reverse = dns_lookup::lookup_addr(&ip).unwrap_or_else(|_| "<reverse-dns-failed>".into());
+    println!(
+        "[AUTH] Login attempt user='{}' ip='{}' host='{}' ua='{}'",
+        payload.username, ip, host_reverse, user_agent
+    );
     match crate::auth::User::find_by_username(&conn, &payload.username) {
         Ok(Some(user)) => {
             if verify_password(&user.password_hash, &payload.password) {
+                println!(
+                    "[AUTH] Login success user='{}' role='{}' ip='{}' host='{}'",
+                    user.username, user.role, ip, host_reverse
+                );
                 let token = generate_token(user.id.unwrap(), &user.role, &secret).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
                 Ok(Json(json!({"token": token, "role": user.role})))
-            } else { Err(StatusCode::UNAUTHORIZED) }
+            } else {
+                println!(
+                    "[AUTH] Login failed(bad-password) user='{}' ip='{}' host='{}'",
+                    payload.username, ip, host_reverse
+                );
+                Err(StatusCode::UNAUTHORIZED)
+            }
         }
-        _ => Err(StatusCode::UNAUTHORIZED)
+        _ => {
+            println!(
+                "[AUTH] Login failed(user-not-found) user='{}' ip='{}' host='{}'",
+                payload.username, ip, host_reverse
+            );
+            Err(StatusCode::UNAUTHORIZED)
+        }
     }
 }
 

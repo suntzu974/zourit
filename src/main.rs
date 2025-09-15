@@ -9,6 +9,7 @@ mod auth;
 mod middleware;
 
 use tower_http::cors::CorsLayer;
+use std::net::SocketAddr;
 use database::Database;
 use std::env;
 
@@ -22,7 +23,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     let app = routes::create_router()
         .layer(CorsLayer::permissive())
-        .with_state(shared_conn);
+        .with_state(shared_conn)
+        .into_make_service_with_connect_info::<SocketAddr>();
 
     let listener = tokio::net::TcpListener::bind(&addr).await?;
     println!("Server running on http://{}", listener.local_addr()?.to_string());
