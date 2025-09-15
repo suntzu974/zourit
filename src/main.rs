@@ -7,7 +7,6 @@ mod entity;
 mod templates;
 mod auth;
 mod middleware;
-mod permissions;
 
 use tower_http::cors::CorsLayer;
 use std::net::SocketAddr;

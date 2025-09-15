@@ -342,39 +342,7 @@ Limitations / next steps:
 - First admin bootstrap: `POST /auth/admin` (unauthenticated only if no admin exists)
 - Always serve behind HTTPS in production
 - Add rate limiting & logging for brute-force mitigation (not yet implemented)
-- CSRF protection implemented for admin role change form (double-submit cookie)
- - Application-level permission system: static role→permission mapping with optional dynamic override via `role_permissions` table.
-
-### Permission System
-
-The API now includes a granular permission layer:
-
-Permissions (enum `Permission`):
-```
-product.read
-product.create
-product.update
-product.delete
-user.list
-user.promote
-```
-
-Default role mapping (static):
-```
-user  -> product.read, product.create, product.update
-admin -> all permissions
-```
-
-Dynamic override (optional):
-- Migration `002_role_permissions.sql` creates table: `role_permissions(role TEXT, permission TEXT, PRIMARY KEY(role, permission))`
-- If entries exist, `has_permission` first checks this table; absence falls back to static map.
-
-Extending:
-1. Add variant to `Permission` enum in `src/permissions.rs`
-2. Add mapping to static ROLE_MAP or insert rows into `role_permissions`
-3. Apply a dedicated middleware (future) to routes needing that permission
-
-Planned: integrate `permission_middleware` in all protected routes (currently admin delete still uses admin role shortcut).
+-- CSRF protection implemented for admin role change form (double-submit cookie)
 
 ## Examples
 
