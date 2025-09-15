@@ -6,17 +6,18 @@ use crate::handlers::{ product_handler::* };
 use crate::handlers::auth_handler::AuthUser;
 use axum::extract::{State, Path, Extension};
 use crate::database::SharedConnection;
-use crate::middleware::auth_middleware;
+use crate::middleware::{auth_middleware};
 
 pub fn create_product_routes() -> Router<SharedConnection> {
     let auth_layer = axum::middleware::from_fn(auth_middleware);
 
+    // We'll inject permission middleware at runtime by cloning state later in router assembly, so here just basic auth.
     Router::new()
         .route("/products", get(get_all_products).route_layer(auth_layer.clone()))
         .route("/products/{id}", get(get_product).route_layer(auth_layer.clone()))
         .route("/products", post(create_product).route_layer(auth_layer.clone()))
         .route("/products/{id}", put(update_product).route_layer(auth_layer.clone()))
-        .route("/products/{id}", delete(delete_product_secure).route_layer(auth_layer))
+    .route("/products/{id}", delete(delete_product_secure).route_layer(auth_layer))
 }
 
 async fn delete_product_secure(

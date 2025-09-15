@@ -30,10 +30,12 @@ async fn index(Query(params): Query<HashMap<String, String>>) -> Result<Html<Str
 }
 
 pub fn create_router() -> Router<SharedConnection> {
+    // We'll attach permission middleware for admin UI (user.promote & user.list)
+    let admin_list_layer = axum::middleware::from_fn(admin_middleware); // keep existing for now
     Router::new()
         .route("/", get(index))
-    .route("/admin/users", get(list_users_html).route_layer(axum::middleware::from_fn(admin_middleware)))
-    .route("/admin/users/{id}/role", post(promote_user).route_layer(axum::middleware::from_fn(admin_middleware)))
+        .route("/admin/users", get(list_users_html).route_layer(admin_list_layer.clone()))
+        .route("/admin/users/{id}/role", post(promote_user).route_layer(admin_list_layer))
         .merge(product_routes::create_product_routes())
         .merge(auth_routes::create_auth_routes())
 }
