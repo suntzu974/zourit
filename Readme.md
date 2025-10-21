@@ -223,7 +223,10 @@ SYNC_INTERVAL_SECONDS=60
 - ✅ Performance constante
 - ✅ Reconnexion automatique
 
-**Voir documentation détaillée :** [`docs/REPLICATION.md`](docs/REPLICATION.md) et [`docs/OFFLINE_TESTING.md`](docs/OFFLINE_TESTING.md)  
+**Voir documentation détaillée :**
+- 📖 [`docs/REPLICATION.md`](docs/REPLICATION.md) - Architecture complète
+- 🧪 [`docs/OFFLINE_TESTING.md`](docs/OFFLINE_TESTING.md) - Scénarios de test
+- ❓ [`docs/OFFLINE_BEHAVIOR.md`](docs/OFFLINE_BEHAVIOR.md) - Comportement en cas de panne  
 
 ### Setup Turso
 
