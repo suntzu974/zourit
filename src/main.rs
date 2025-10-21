@@ -12,6 +12,8 @@ use tower_http::cors::CorsLayer;
 use std::net::SocketAddr;
 use database::Database;
 use std::env;
+use libsql::Builder;
+use libsql::replication::Frames;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -20,7 +22,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let port = env::var("PORT").unwrap_or_else(|_| "3000".into());
     let addr = format!("0.0.0.0:{}", port);
     let shared_conn = Database::create_shared_connection(&db_path)?;
-    
     let app = routes::create_router()
         .layer(CorsLayer::permissive())
         .with_state(shared_conn)

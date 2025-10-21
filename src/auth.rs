@@ -2,7 +2,7 @@ use argon2::{Argon2, PasswordHasher, PasswordVerifier, password_hash::{SaltStrin
 use jsonwebtoken::{encode, decode, Header, Validation, EncodingKey, DecodingKey, Algorithm, TokenData};
 use serde::{Serialize, Deserialize};
 use time::{Duration, OffsetDateTime};
-use rusqlite::{Connection, params, Result};
+use libsql::{Connection, params, Result as LibsqlResult};
 
 const TOKEN_EXP_HOURS: i64 = 12;
 
@@ -47,19 +47,19 @@ pub struct RegisterUser { pub username: String, pub password: String }
 pub struct LoginUser { pub username: String, pub password: String }
 
 impl User {
-    pub fn create_table(conn: &Connection) -> Result<()> {
-        conn.execute("CREATE TABLE IF NOT EXISTS user (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, role TEXT NOT NULL)", [])?;
+    pub async fn create_table(conn: &Connection) -> LibsqlResult<()> {
+        conn.execute("CREATE TABLE IF NOT EXISTS user (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, role TEXT NOT NULL)", []).await?;
         Ok(())
     }
-    pub fn insert(&mut self, conn: &Connection) -> Result<()> {
-        conn.execute("INSERT INTO user (username, password_hash, role) VALUES (?1, ?2, ?3)", params![self.username, self.password_hash, self.role])?;
+    pub async fn insert(&mut self, conn: &Connection) -> LibsqlResult<()> {
+        conn.execute("INSERT INTO user (username, password_hash, role) VALUES (?1, ?2, ?3)", params![self.username, self.password_hash, self.role]).await?;
         self.id = Some(conn.last_insert_rowid() as i32);
         Ok(())
     }
-    pub fn find_by_username(conn: &Connection, username: &str) -> Result<Option<User>> {
-        let mut stmt = conn.prepare("SELECT id, username, password_hash, role FROM user WHERE username = ?1")?;
-        let mut rows = stmt.query([username])?;
-        if let Some(row) = rows.next()? {
+    pub async fn find_by_username(conn: &Connection, username: &str) -> LibsqlResult<Option<User>> {
+        let mut stmt = conn.prepare("SELECT id, username, password_hash, role FROM user WHERE username = ?1").await?;
+        let mut rows = stmt.query([username]).await?;
+        if let Some(row) = rows.next().await? {
             Ok(Some(User { id: Some(row.get(0)?), username: row.get(1)?, password_hash: row.get(2)?, role: row.get(3)? }))
         } else { Ok(None) }
     }
