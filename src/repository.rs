@@ -1,5 +1,6 @@
-use rusqlite::{Connection, Result};
+use libsql::Connection;
 use serde::{Deserialize, Serialize};
+use crate::database::DbResult;
 
 #[allow(dead_code)]
 pub trait Repository<T, CreateT, UpdateT> 
@@ -8,12 +9,12 @@ where
     CreateT: for<'de> Deserialize<'de>,
     UpdateT: for<'de> Deserialize<'de>,
 {
-    fn create_table(conn: &Connection) -> Result<()>;
-    fn insert(&mut self, conn: &Connection) -> Result<()>;
-    fn find_by_id(conn: &Connection, id: i32) -> Result<Option<T>>;
-    fn find_all(conn: &Connection) -> Result<Vec<T>>;
-    fn update(conn: &Connection, id: i32, update_data: UpdateT) -> Result<Option<T>>;
-    fn delete(conn: &Connection, id: i32) -> Result<bool>;
+    async fn create_table(conn: &Connection) -> DbResult<()>;
+    async fn insert(&mut self, conn: &Connection) -> DbResult<()>;
+    async fn find_by_id(conn: &Connection, id: i32) -> DbResult<Option<T>>;
+    async fn find_all(conn: &Connection) -> DbResult<Vec<T>>;
+    async fn update(conn: &Connection, id: i32, update_data: UpdateT) -> DbResult<Option<T>>;
+    async fn delete(conn: &Connection, id: i32) -> DbResult<bool>;
 }
 
 pub trait Entity {

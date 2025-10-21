@@ -16,10 +16,9 @@ where
     UpdateT: for<'de> Deserialize<'de>,
     T: crate::repository::Entity<CreateType = CreateT>,
 {
-    let conn = conn.lock().unwrap();
     let mut entity = T::new_from_create(payload);
     
-    match entity.insert(&conn) {
+    match entity.insert(conn).await {
         Ok(()) => Ok(Json(entity)),
         Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
     }
@@ -34,9 +33,7 @@ where
     CreateT: for<'de> Deserialize<'de>,
     UpdateT: for<'de> Deserialize<'de>,
 {
-    let conn = conn.lock().unwrap();
-    
-    match T::find_by_id(&conn, id) {
+    match T::find_by_id(conn, id).await {
         Ok(Some(entity)) => Ok(Json(entity)),
         Ok(None) => Err(StatusCode::NOT_FOUND),
         Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
@@ -51,9 +48,7 @@ where
     CreateT: for<'de> Deserialize<'de>,
     UpdateT: for<'de> Deserialize<'de>,
 {
-    let conn = conn.lock().unwrap();
-    
-    match T::find_all(&conn) {
+    match T::find_all(conn).await {
         Ok(entities) => Ok(Json(entities)),
         Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
     }
@@ -69,9 +64,7 @@ where
     CreateT: for<'de> Deserialize<'de>,
     UpdateT: for<'de> Deserialize<'de>,
 {
-    let conn = conn.lock().unwrap();
-    
-    match T::update(&conn, id, payload) {
+    match T::update(conn, id, payload).await {
         Ok(Some(entity)) => Ok(Json(entity)),
         Ok(None) => Err(StatusCode::NOT_FOUND),
         Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
@@ -87,9 +80,7 @@ where
     CreateT: for<'de> Deserialize<'de>,
     UpdateT: for<'de> Deserialize<'de>,
 {
-    let conn = conn.lock().unwrap();
-    
-    match T::delete(&conn, id) {
+    match T::delete(conn, id).await {
         Ok(true) => Ok(StatusCode::NO_CONTENT),
         Ok(false) => Err(StatusCode::NOT_FOUND),
         Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),

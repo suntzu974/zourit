@@ -1,6 +1,7 @@
-use rusqlite::{params, Connection, Result};
+use libsql::Connection;
 use serde::{Deserialize, Serialize};
 use crate::repository::{Repository, Entity};
+use crate::database::DbResult;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Product {
@@ -38,7 +39,7 @@ impl Product {
         }
     }
 
-    pub fn create_table(conn: &Connection) -> Result<()> {
+    pub async fn create_table(conn: &Connection) -> DbResult<()> {
         conn.execute(
             "CREATE TABLE IF NOT EXISTS product (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -47,59 +48,65 @@ impl Product {
                 price REAL NOT NULL,
                 quantity INTEGER NOT NULL
             )",
-            [],
-        )?;
+            (),
+        ).await?;
         Ok(())
     }
 
-    pub fn insert(&mut self, conn: &Connection) -> Result<()> {
+    pub async fn insert(&mut self, conn: &Connection) -> DbResult<()> {
         conn.execute(
             "INSERT INTO product (name, description, price, quantity) VALUES (?1, ?2, ?3, ?4)",
-            params![self.name, self.description, self.price, self.quantity],
-        )?;
+            libsql::params![
+                self.name.clone(),
+                self.description.clone(),
+                self.price,
+                self.quantity
+            ],
+        ).await?;
         self.id = Some(conn.last_insert_rowid() as i32);
         Ok(())
     }
 
-    pub fn find_by_id(conn: &Connection, id: i32) -> Result<Option<Product>> {
-        let mut stmt = conn.prepare("SELECT id, name, description, price, quantity FROM product WHERE id = ?1")?;
-        let product_iter = stmt.query_map([id], |row| {
-            Ok(Product {
-                id: Some(row.get(0)?),
-                name: row.get(1)?,
-                description: row.get(2)?,
-                price: row.get(3)?,
-                quantity: row.get(4)?,
-            })
-        })?;
+    pub async fn find_by_id(conn: &Connection, id: i32) -> DbResult<Option<Product>> {
+        let mut rows = conn.query(
+            "SELECT id, name, description, price, quantity FROM product WHERE id = ?1",
+            [libsql::Value::from(id)]
+        ).await?;
 
-        for product in product_iter {
-            return Ok(Some(product?));
+        if let Some(row) = rows.next().await? {
+            Ok(Some(Product {
+                id: Some(row.get::<i64>(0)? as i32),
+                name: row.get::<String>(1)?,
+                description: row.get::<String>(2)?,
+                price: row.get::<f64>(3)?,
+                quantity: row.get::<i64>(4)? as i32,
+            }))
+        } else {
+            Ok(None)
         }
-        Ok(None)
     }
 
-    pub fn find_all(conn: &Connection) -> Result<Vec<Product>> {
-        let mut stmt = conn.prepare("SELECT id, name, description, price, quantity FROM product")?;
-        let product_iter = stmt.query_map([], |row| {
-            Ok(Product {
-                id: Some(row.get(0)?),
-                name: row.get(1)?,
-                description: row.get(2)?,
-                price: row.get(3)?,
-                quantity: row.get(4)?,
-            })
-        })?;
+    pub async fn find_all(conn: &Connection) -> DbResult<Vec<Product>> {
+        let mut rows = conn.query(
+            "SELECT id, name, description, price, quantity FROM product",
+            ()
+        ).await?;
 
         let mut products = Vec::new();
-        for product in product_iter {
-            products.push(product?);
+        while let Some(row) = rows.next().await? {
+            products.push(Product {
+                id: Some(row.get::<i64>(0)? as i32),
+                name: row.get::<String>(1)?,
+                description: row.get::<String>(2)?,
+                price: row.get::<f64>(3)?,
+                quantity: row.get::<i64>(4)? as i32,
+            });
         }
         Ok(products)
     }
 
-    pub fn update(conn: &Connection, id: i32, update_data: UpdateProduct) -> Result<Option<Product>> {
-        if let Some(mut product) = Self::find_by_id(conn, id)? {
+    pub async fn update(conn: &Connection, id: i32, update_data: UpdateProduct) -> DbResult<Option<Product>> {
+        if let Some(mut product) = Self::find_by_id(conn, id).await? {
             if let Some(name) = update_data.name {
                 product.name = name;
             }
@@ -115,8 +122,14 @@ impl Product {
 
             conn.execute(
                 "UPDATE product SET name = ?1, description = ?2, price = ?3, quantity = ?4 WHERE id = ?5",
-                params![product.name, product.description, product.price, product.quantity, id],
-            )?;
+                libsql::params![
+                    product.name.clone(),
+                    product.description.clone(),
+                    product.price,
+                    product.quantity,
+                    id
+                ],
+            ).await?;
 
             Ok(Some(product))
         } else {
@@ -124,35 +137,38 @@ impl Product {
         }
     }
 
-    pub fn delete(conn: &Connection, id: i32) -> Result<bool> {
-        let rows_affected = conn.execute("DELETE FROM product WHERE id = ?1", [id])?;
+    pub async fn delete(conn: &Connection, id: i32) -> DbResult<bool> {
+        let rows_affected = conn.execute(
+            "DELETE FROM product WHERE id = ?1",
+            [libsql::Value::from(id)]
+        ).await?;
         Ok(rows_affected > 0)
     }
 }
 
 impl Repository<Product, CreateProduct, UpdateProduct> for Product {
-    fn create_table(conn: &Connection) -> Result<()> {
-        Product::create_table(conn)
+    async fn create_table(conn: &Connection) -> DbResult<()> {
+        Product::create_table(conn).await
     }
 
-    fn insert(&mut self, conn: &Connection) -> Result<()> {
-        self.insert(conn)
+    async fn insert(&mut self, conn: &Connection) -> DbResult<()> {
+        self.insert(conn).await
     }
 
-    fn find_by_id(conn: &Connection, id: i32) -> Result<Option<Product>> {
-        Product::find_by_id(conn, id)
+    async fn find_by_id(conn: &Connection, id: i32) -> DbResult<Option<Product>> {
+        Product::find_by_id(conn, id).await
     }
 
-    fn find_all(conn: &Connection) -> Result<Vec<Product>> {
-        Product::find_all(conn)
+    async fn find_all(conn: &Connection) -> DbResult<Vec<Product>> {
+        Product::find_all(conn).await
     }
 
-    fn update(conn: &Connection, id: i32, data: UpdateProduct) -> Result<Option<Product>> {
-        Product::update(conn, id, data)
+    async fn update(conn: &Connection, id: i32, data: UpdateProduct) -> DbResult<Option<Product>> {
+        Product::update(conn, id, data).await
     }
 
-    fn delete(conn: &Connection, id: i32) -> Result<bool> {
-        Product::delete(conn, id)
+    async fn delete(conn: &Connection, id: i32) -> DbResult<bool> {
+        Product::delete(conn, id).await
     }
 }
 
