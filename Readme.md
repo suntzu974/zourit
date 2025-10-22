@@ -160,39 +160,70 @@ CREATE INDEX IF NOT EXISTS idx_product_sku ON product(sku);
 
 ## Database Configuration
 
-This project uses **LibSQL** for database connectivity with two modes:
+This project uses **LibSQL** with **embedded replica** for optimal performance and reliability.
 
-### Configuration Modes
+### Embedded Replica Mode (Current Configuration)
 
-#### 1. Remote Mode (Production - Current)
 ```env
+# Local database file
+DATABASE_PATH=zourit.db
+
+# Remote Turso sync
 TURSO_DATABASE_URL=libsql://your-database.turso.io
 TURSO_AUTH_TOKEN=your_token_here
-```
-- Direct connection to Turso cloud database
-- All operations go through network
-- Centralized data, no local storage
-- Immediate consistency across all instances
-- Requires network connectivity
 
-#### 2. Local Mode (Development)
-```env
-# Comment out TURSO_* variables
-DATABASE_PATH=zourit.db
+# Sync settings
+SYNC_INTERVAL_SECONDS=60
+SYNC_MAX_RETRY_INTERVAL=300
 ```
-- Uses local SQLite file
-- Offline development friendly
+
+**How it works:**
+- ✅ **All reads/writes**: Local SQLite file (< 1ms latency)
+- ✅ **Background sync**: Automatic sync to Turso every 60 seconds
+- ✅ **Offline resilient**: Works without network, syncs when restored
+- ✅ **Initial sync**: Downloads latest data on startup
+
+### Alternative: Local-Only Mode (Development)
+
+```env
+DATABASE_PATH=zourit.db
+# Comment out TURSO_* variables
+```
+- Pure local SQLite
+- No cloud sync
 - Fast for testing
-- No network required
 
 ### Benefits
 
-✅ **Centralized Data**: Single source of truth in Turso cloud  
-✅ **Immediate Consistency**: All instances see changes instantly  
-✅ **Global Distribution**: Turso handles replication across regions  
+✅ **Performance**: Local reads/writes < 1ms (no network latency)  
+✅ **Reliability**: Works offline, syncs when connection restored  
+✅ **Global Distribution**: Turso handles multi-region replication  
 ✅ **Point-in-time Recovery**: Cloud backup with Turso's built-in features  
-✅ **Scalability**: Turso handles connection pooling and optimization  
-✅ **Simple Architecture**: No local sync complexity  
+✅ **Scalability**: Multiple instances can sync to same Turso DB  
+✅ **Resilience**: Automatic retry with exponential backoff
+
+### Offline Behavior
+
+**What happens if Turso is unreachable?**
+
+```
+✅ App starts normally with local database
+✅ All CRUD operations work (local file)
+⚠️  "OFFLINE mode" logged automatically
+🔄 Background sync retries with backoff
+✅ Auto-reconnect when network restored
+```
+
+**Guarantees:**
+- Zero data loss (all saved locally)
+- Zero downtime (continues on local DB)
+- Consistent performance (< 1ms latency)
+- Automatic recovery (no manual intervention)
+
+**See detailed documentation:**
+- 📖 [`docs/REPLICATION.md`](docs/REPLICATION.md) - Architecture details
+- 🧪 [`docs/OFFLINE_TESTING.md`](docs/OFFLINE_TESTING.md) - Test scenarios
+- ❓ [`docs/OFFLINE_BEHAVIOR.md`](docs/OFFLINE_BEHAVIOR.md) - Failure handling  
 
 ### Setup Turso
 

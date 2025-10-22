@@ -20,7 +20,10 @@ where
     
     match entity.insert(conn).await {
         Ok(()) => Ok(Json(entity)),
-        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+        Err(e) => {
+            eprintln!("[ERROR] Failed to insert entity: {:?}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
     }
 }
 
@@ -36,7 +39,10 @@ where
     match T::find_by_id(conn, id).await {
         Ok(Some(entity)) => Ok(Json(entity)),
         Ok(None) => Err(StatusCode::NOT_FOUND),
-        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+        Err(e) => {
+            eprintln!("[ERROR] Failed to find entity by id: {:?}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
     }
 }
 
@@ -50,7 +56,10 @@ where
 {
     match T::find_all(conn).await {
         Ok(entities) => Ok(Json(entities)),
-        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+        Err(e) => {
+            eprintln!("[ERROR] Failed to find all entities: {:?}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
     }
 }
 
@@ -67,7 +76,10 @@ where
     match T::update(conn, id, payload).await {
         Ok(Some(entity)) => Ok(Json(entity)),
         Ok(None) => Err(StatusCode::NOT_FOUND),
-        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+        Err(e) => {
+            eprintln!("[ERROR] Failed to update entity: {:?}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
     }
 }
 
@@ -83,6 +95,9 @@ where
     match T::delete(conn, id).await {
         Ok(true) => Ok(StatusCode::NO_CONTENT),
         Ok(false) => Err(StatusCode::NOT_FOUND),
-        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+        Err(e) => {
+            eprintln!("[ERROR] Failed to delete entity: {:?}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
     }
 }

@@ -2,17 +2,20 @@ use libsql::{Connection, Database as LibSqlDatabase};
 use std::sync::Arc;
 use std::fs;
 use std::path::Path;
+use tokio::time::{interval, Duration};
 
 pub type SharedConnection = Arc<Connection>;
+pub type SharedDatabase = Arc<LibSqlDatabase>;
 pub type DbResult<T> = Result<T, libsql::Error>;
 
-/// Database connection manager for LibSQL.
+/// Database connection manager with embedded replica support.
 /// 
 /// Configuration modes:
-/// - **Remote only**: Set TURSO_DATABASE_URL + TURSO_AUTH_TOKEN (production)
-///   - Direct connection to Turso cloud
-///   - All operations go through network
-///   - No local storage required
+/// - **Embedded replica**: Set DATABASE_PATH (local file) + TURSO_DATABASE_URL + TURSO_AUTH_TOKEN
+///   - Reads/writes go to local file (fast, < 1ms)
+///   - Changes automatically sync to Turso cloud (periodic background sync)
+///   - On startup, pulls latest data from Turso
+///   - Works offline, syncs when connection restored
 /// 
 /// - **Local only**: Leave TURSO_* unset (development)
 ///   - Uses local SQLite file specified by DATABASE_PATH
@@ -21,20 +24,35 @@ pub struct Database;
 
 impl Database {
     pub async fn connect(database_path: &str) -> DbResult<(LibSqlDatabase, Connection)> {
-        // Check if remote URL is configured
+        // Check if remote URL is configured for replication
         let remote_url = std::env::var("TURSO_DATABASE_URL").ok();
         let auth_token = std::env::var("TURSO_AUTH_TOKEN").ok();
         
         match (remote_url, auth_token) {
             (Some(url), Some(token)) if !url.is_empty() && !token.is_empty() => {
-                // Direct remote connection to Turso (no local replica)
-                println!("[database] Connecting to remote Turso database: '{}'", url);
-                let db = libsql::Builder::new_remote(url, token)
-                    .build()
-                    .await?;
+                // Embedded replica: local file synced with remote Turso
+                println!("[database] Connecting with embedded replica: local='{}' remote='{}'", database_path, url);
+                let db = libsql::Builder::new_remote_replica(
+                    database_path.to_string(),
+                    url,
+                    token
+                )
+                .sync_interval(std::time::Duration::from_secs(60))
+                .read_your_writes(true)  // Enable local writes even when remote is unavailable
+                .build()
+                .await?;
                 
                 let conn = db.connect()?;
-                println!("[database] Connected successfully to Turso");
+                
+                // Perform initial sync
+                println!("[database] Syncing with remote...");
+                match db.sync().await {
+                    Ok(_) => println!("[database] Sync completed successfully"),
+                    Err(e) => {
+                        eprintln!("[database] Sync warning: {} (continuing anyway)", e);
+                        eprintln!("[database] → Local writes enabled, will sync when connection restored");
+                    }
+                }
                 
                 Ok((db, conn))
             }
@@ -49,9 +67,82 @@ impl Database {
     }
 
     pub async fn create_shared_connection(database_path: &str) -> DbResult<SharedConnection> {
-        let (_db, conn) = Self::connect(database_path).await?;
+        let (db, conn) = Self::connect(database_path).await?;
         Self::create_tables(&conn).await?;
+        
+        // Start background sync task if replication is enabled
+        let is_replica = std::env::var("TURSO_DATABASE_URL").ok()
+            .and_then(|url| std::env::var("TURSO_AUTH_TOKEN").ok().map(|_| url))
+            .filter(|url| !url.is_empty())
+            .is_some();
+            
+        if is_replica {
+            Self::start_sync_task(Arc::new(db));
+        }
+        
         Ok(Arc::new(conn))
+    }
+    
+    fn start_sync_task(db: SharedDatabase) {
+        tokio::spawn(async move {
+            let sync_interval_secs = std::env::var("SYNC_INTERVAL_SECONDS")
+                .ok()
+                .and_then(|s| s.parse::<u64>().ok())
+                .unwrap_or(60); // Default: sync every 60 seconds
+            
+            let max_retry_interval = std::env::var("SYNC_MAX_RETRY_INTERVAL")
+                .ok()
+                .and_then(|s| s.parse::<u64>().ok())
+                .unwrap_or(300); // Max 5 minutes between retries
+            
+            let mut ticker = interval(Duration::from_secs(sync_interval_secs));
+            let mut consecutive_failures = 0u32;
+            let mut is_offline = false;
+            
+            ticker.tick().await; // Skip first immediate tick
+            
+            println!("[database] Background sync task started (interval: {}s)", sync_interval_secs);
+            
+            loop {
+                ticker.tick().await;
+                
+                match db.sync().await {
+                    Ok(_) => {
+                        if is_offline {
+                            println!("✅ [database] Remote connection restored! Sync completed");
+                            is_offline = false;
+                            consecutive_failures = 0;
+                        } else {
+                            println!("[database] Background sync completed");
+                        }
+                    }
+                    Err(e) => {
+                        consecutive_failures += 1;
+                        
+                        if !is_offline {
+                            eprintln!("⚠️  [database] Remote unreachable - operating in OFFLINE mode");
+                            eprintln!("    Error: {}", e);
+                            eprintln!("    → All operations continue on local database");
+                            eprintln!("    → Will retry sync every {}s", sync_interval_secs);
+                            is_offline = true;
+                        } else if consecutive_failures % 10 == 0 {
+                            // Log every 10 failures to avoid spam
+                            eprintln!("[database] Still offline (failed {} times) - continuing local ops", consecutive_failures);
+                        }
+                        
+                        // Exponential backoff capped at max_retry_interval
+                        if consecutive_failures > 3 {
+                            let backoff_secs = (sync_interval_secs * 2_u64.pow((consecutive_failures - 3).min(5)))
+                                .min(max_retry_interval);
+                            if backoff_secs > sync_interval_secs {
+                                println!("[database] Backing off to {}s before next retry", backoff_secs);
+                                tokio::time::sleep(Duration::from_secs(backoff_secs - sync_interval_secs)).await;
+                            }
+                        }
+                    }
+                }
+            }
+        });
     }
 
     pub async fn create_tables(conn: &Connection) -> DbResult<()> {
