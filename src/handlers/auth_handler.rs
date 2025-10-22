@@ -1,25 +1,25 @@
 use axum::{extract::{State, Extension, ConnectInfo}, http::{StatusCode, HeaderMap}, Json};
 use std::net::SocketAddr;
 use serde_json::{json, Value};
-use crate::{database::SharedConnection, auth::{RegisterUser, LoginUser, User, hash_password, verify_password, generate_token}};
+use crate::{database::SharedDatabase, auth::{RegisterUser, LoginUser, User, hash_password, verify_password, generate_token}};
 use std::env;
 
 const DEFAULT_SECRET: &str = "CHANGE_ME_DEV_SECRET";
 
-pub async fn register(State(conn): State<SharedConnection>, Json(payload): Json<RegisterUser>) -> Result<Json<Value>, StatusCode> {
+pub async fn register(State(db): State<SharedDatabase>, Json(payload): Json<RegisterUser>) -> Result<Json<Value>, StatusCode> {
     let secret = env::var("JWT_SECRET").unwrap_or_else(|_| DEFAULT_SECRET.to_string());
-    if let Ok(Some(_)) = crate::auth::User::find_by_username(&conn, &payload.username).await {
+    if let Ok(Some(_)) = crate::auth::User::find_by_username(&db, &payload.username).await {
         return Err(StatusCode::CONFLICT);
     }
     let password_hash = hash_password(&payload.password).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let mut user = User { id: None, username: payload.username, password_hash, role: "user".to_string() };
-    user.insert(&conn).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    user.insert(&db).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let token = generate_token(user.id.unwrap(), &user.role, &secret).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Json(json!({"token": token, "role": user.role})))
 }
 
 pub async fn login(
-    State(conn): State<SharedConnection>,
+    State(db): State<SharedDatabase>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
     Json(payload): Json<LoginUser>
@@ -33,7 +33,7 @@ pub async fn login(
         "[AUTH] Login attempt user='{}' ip='{}' host='{}' ua='{}'",
         payload.username, ip, host_reverse, user_agent
     );
-    match crate::auth::User::find_by_username(&conn, &payload.username).await {
+    match crate::auth::User::find_by_username(&db, &payload.username).await {
         Ok(Some(user)) => {
             if verify_password(&user.password_hash, &payload.password) {
                 println!(
@@ -72,8 +72,9 @@ pub async fn refresh_token(
     Ok(Json(json!({"token": token, "role": user.role})))
 }
 
-pub async fn list_users(State(conn): State<SharedConnection>, Extension(user): Extension<AuthUser>) -> Result<Json<Value>, StatusCode> {
+pub async fn list_users(State(db): State<SharedDatabase>, Extension(user): Extension<AuthUser>) -> Result<Json<Value>, StatusCode> {
     if user.role != "admin" { return Err(StatusCode::FORBIDDEN); }
+    let conn = db.connect().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let mut rows = conn.query("SELECT id, username, role FROM user", ()).await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let mut users = Vec::new();
@@ -91,13 +92,14 @@ pub async fn list_users(State(conn): State<SharedConnection>, Extension(user): E
 // Bootstrapping rule: if there is no existing admin user, endpoint can be called without auth.
 // Otherwise a valid admin JWT must be provided in Authorization: Bearer <token>.
 pub async fn create_admin(
-    State(conn): State<SharedConnection>,
+    State(db): State<SharedDatabase>,
     headers: axum::http::HeaderMap,
     Json(payload): Json<RegisterUser>
 ) -> Result<Json<Value>, StatusCode> {
     let secret = env::var("JWT_SECRET").unwrap_or_else(|_| DEFAULT_SECRET.to_string());
 
     // Count existing admins
+    let conn = db.connect().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let mut rows = conn.query("SELECT COUNT(*) FROM user WHERE role='admin'", ()).await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let admin_count: i64 = if let Some(row) = rows.next().await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)? {
@@ -115,11 +117,11 @@ pub async fn create_admin(
     }
 
     // Check if username already exists
-    if let Ok(Some(_)) = crate::auth::User::find_by_username(&conn, &payload.username).await { return Err(StatusCode::CONFLICT); }
+    if let Ok(Some(_)) = crate::auth::User::find_by_username(&db, &payload.username).await { return Err(StatusCode::CONFLICT); }
 
     let password_hash = hash_password(&payload.password).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let mut user = User { id: None, username: payload.username, password_hash, role: "admin".to_string() };
-    user.insert(&conn).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    user.insert(&db).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let token = generate_token(user.id.unwrap(), &user.role, &secret).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Json(json!({"token": token, "role": user.role})))
 }

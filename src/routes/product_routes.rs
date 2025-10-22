@@ -5,10 +5,10 @@ use axum::{
 use crate::handlers::{ product_handler::* };
 use crate::handlers::auth_handler::AuthUser;
 use axum::extract::{State, Path, Extension};
-use crate::database::SharedConnection;
+use crate::database::SharedDatabase;
 use crate::middleware::auth_middleware;
 
-pub fn create_product_routes() -> Router<SharedConnection> {
+pub fn create_product_routes() -> Router<SharedDatabase> {
     let auth_layer = axum::middleware::from_fn(auth_middleware);
 
     Router::new()
@@ -20,10 +20,10 @@ pub fn create_product_routes() -> Router<SharedConnection> {
 }
 
 async fn delete_product_secure(
-    State(conn): State<SharedConnection>,
+    State(db): State<SharedDatabase>,
     Path(id): Path<i32>,
     Extension(user): Extension<AuthUser>
 ) -> Result<axum::http::StatusCode, axum::http::StatusCode> {
     if user.role != "admin" { return Err(axum::http::StatusCode::FORBIDDEN); }
-    crate::handlers::product_handler::delete_product(State(conn), Path(id)).await
+    crate::handlers::product_handler::delete_product(State(db), Path(id)).await
 }

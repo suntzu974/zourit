@@ -4,7 +4,6 @@ use std::fs;
 use std::path::Path;
 use tokio::time::{interval, Duration};
 
-pub type SharedConnection = Arc<Connection>;
 pub type SharedDatabase = Arc<LibSqlDatabase>;
 pub type DbResult<T> = Result<T, libsql::Error>;
 
@@ -66,9 +65,11 @@ impl Database {
         }
     }
 
-    pub async fn create_shared_connection(database_path: &str) -> DbResult<SharedConnection> {
+    pub async fn create_shared_database(database_path: &str) -> DbResult<SharedDatabase> {
         let (db, conn) = Self::connect(database_path).await?;
         Self::create_tables(&conn).await?;
+        
+        let db = Arc::new(db);
         
         // Start background sync task if replication is enabled
         let is_replica = std::env::var("TURSO_DATABASE_URL").ok()
@@ -77,10 +78,10 @@ impl Database {
             .is_some();
             
         if is_replica {
-            Self::start_sync_task(Arc::new(db));
+            Self::start_sync_task(db.clone());
         }
         
-        Ok(Arc::new(conn))
+        Ok(db)
     }
     
     fn start_sync_task(db: SharedDatabase) {

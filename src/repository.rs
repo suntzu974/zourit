@@ -1,4 +1,4 @@
-use libsql::Connection;
+use libsql::Database as LibSqlDatabase;
 use serde::{Deserialize, Serialize};
 use crate::database::DbResult;
 
@@ -9,12 +9,12 @@ where
     CreateT: for<'de> Deserialize<'de>,
     UpdateT: for<'de> Deserialize<'de>,
 {
-    async fn create_table(conn: &Connection) -> DbResult<()>;
-    async fn insert(&mut self, conn: &Connection) -> DbResult<()>;
-    async fn find_by_id(conn: &Connection, id: i32) -> DbResult<Option<T>>;
-    async fn find_all(conn: &Connection) -> DbResult<Vec<T>>;
-    async fn update(conn: &Connection, id: i32, update_data: UpdateT) -> DbResult<Option<T>>;
-    async fn delete(conn: &Connection, id: i32) -> DbResult<bool>;
+    async fn create_table(db: &LibSqlDatabase) -> DbResult<()>;
+    async fn insert(&mut self, db: &LibSqlDatabase) -> DbResult<()>;
+    async fn find_by_id(db: &LibSqlDatabase, id: i32) -> DbResult<Option<T>>;
+    async fn find_all(db: &LibSqlDatabase) -> DbResult<Vec<T>>;
+    async fn update(db: &LibSqlDatabase, id: i32, update_data: UpdateT) -> DbResult<Option<T>>;
+    async fn delete(db: &LibSqlDatabase, id: i32) -> DbResult<bool>;
 }
 
 pub trait Entity {

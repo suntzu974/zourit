@@ -3,11 +3,11 @@ use axum::{
     response::Json,
 };
 use serde::{Deserialize, Serialize};
-use crate::database::SharedConnection;
+use crate::database::SharedDatabase;
 use crate::repository::Repository;
 
 pub async fn create_entity<T, CreateT, UpdateT>(
-    conn: &SharedConnection,
+    db: &SharedDatabase,
     payload: CreateT,
 ) -> Result<Json<T>, StatusCode>
 where
@@ -18,7 +18,7 @@ where
 {
     let mut entity = T::new_from_create(payload);
     
-    match entity.insert(conn).await {
+    match entity.insert(db).await {
         Ok(()) => Ok(Json(entity)),
         Err(e) => {
             eprintln!("[ERROR] Failed to insert entity: {:?}", e);
@@ -28,7 +28,7 @@ where
 }
 
 pub async fn get_entity<T, CreateT, UpdateT>(
-    conn: &SharedConnection,
+    db: &SharedDatabase,
     id: i32,
 ) -> Result<Json<T>, StatusCode>
 where
@@ -36,7 +36,7 @@ where
     CreateT: for<'de> Deserialize<'de>,
     UpdateT: for<'de> Deserialize<'de>,
 {
-    match T::find_by_id(conn, id).await {
+    match T::find_by_id(db, id).await {
         Ok(Some(entity)) => Ok(Json(entity)),
         Ok(None) => Err(StatusCode::NOT_FOUND),
         Err(e) => {
@@ -47,14 +47,14 @@ where
 }
 
 pub async fn get_all_entities<T, CreateT, UpdateT>(
-    conn: &SharedConnection,
+    db: &SharedDatabase,
 ) -> Result<Json<Vec<T>>, StatusCode>
 where
     T: Repository<T, CreateT, UpdateT> + Clone + Serialize,
     CreateT: for<'de> Deserialize<'de>,
     UpdateT: for<'de> Deserialize<'de>,
 {
-    match T::find_all(conn).await {
+    match T::find_all(db).await {
         Ok(entities) => Ok(Json(entities)),
         Err(e) => {
             eprintln!("[ERROR] Failed to find all entities: {:?}", e);
@@ -64,7 +64,7 @@ where
 }
 
 pub async fn update_entity<T, CreateT, UpdateT>(
-    conn: &SharedConnection,
+    db: &SharedDatabase,
     id: i32,
     payload: UpdateT,
 ) -> Result<Json<T>, StatusCode>
@@ -73,7 +73,7 @@ where
     CreateT: for<'de> Deserialize<'de>,
     UpdateT: for<'de> Deserialize<'de>,
 {
-    match T::update(conn, id, payload).await {
+    match T::update(db, id, payload).await {
         Ok(Some(entity)) => Ok(Json(entity)),
         Ok(None) => Err(StatusCode::NOT_FOUND),
         Err(e) => {
@@ -84,7 +84,7 @@ where
 }
 
 pub async fn delete_entity<T, CreateT, UpdateT>(
-    conn: &SharedConnection,
+    db: &SharedDatabase,
     id: i32,
 ) -> Result<StatusCode, StatusCode>
 where
@@ -92,7 +92,7 @@ where
     CreateT: for<'de> Deserialize<'de>,
     UpdateT: for<'de> Deserialize<'de>,
 {
-    match T::delete(conn, id).await {
+    match T::delete(db, id).await {
         Ok(true) => Ok(StatusCode::NO_CONTENT),
         Ok(false) => Err(StatusCode::NOT_FOUND),
         Err(e) => {

@@ -2,7 +2,7 @@ use argon2::{Argon2, PasswordHasher, PasswordVerifier, password_hash::{SaltStrin
 use jsonwebtoken::{encode, decode, Header, Validation, EncodingKey, DecodingKey, Algorithm, TokenData};
 use serde::{Serialize, Deserialize};
 use time::{Duration, OffsetDateTime};
-use libsql::Connection;
+use libsql::Database as LibSqlDatabase;
 use crate::database::DbResult;
 
 const TOKEN_EXP_HOURS: i64 = 12;
@@ -48,7 +48,8 @@ pub struct RegisterUser { pub username: String, pub password: String }
 pub struct LoginUser { pub username: String, pub password: String }
 
 impl User {
-    pub async fn create_table(conn: &Connection) -> DbResult<()> {
+    pub async fn create_table(db: &LibSqlDatabase) -> DbResult<()> {
+        let conn = db.connect()?;
         conn.execute(
             "CREATE TABLE IF NOT EXISTS user (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, role TEXT NOT NULL)",
             ()
@@ -56,7 +57,8 @@ impl User {
         Ok(())
     }
     
-    pub async fn insert(&mut self, conn: &Connection) -> DbResult<()> {
+    pub async fn insert(&mut self, db: &LibSqlDatabase) -> DbResult<()> {
+        let conn = db.connect()?;
         conn.execute(
             "INSERT INTO user (username, password_hash, role) VALUES (?1, ?2, ?3)",
             libsql::params![
@@ -69,7 +71,8 @@ impl User {
         Ok(())
     }
     
-    pub async fn find_by_username(conn: &Connection, username: &str) -> DbResult<Option<User>> {
+    pub async fn find_by_username(db: &LibSqlDatabase, username: &str) -> DbResult<Option<User>> {
+        let conn = db.connect()?;
         let mut rows = conn.query(
             "SELECT id, username, password_hash, role FROM user WHERE username = ?1",
             [libsql::Value::from(username.to_string())]

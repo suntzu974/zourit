@@ -3,7 +3,7 @@ use axum::{
     routing::{get, post},
     extract::Extension,
 };
-use crate::database::SharedConnection;
+use crate::database::SharedDatabase;
 use crate::handlers::auth_handler::{register, login, refresh_token, list_users, create_admin, AuthUser};
 use crate::middleware::{auth_middleware, admin_middleware};
 
@@ -12,7 +12,7 @@ async fn me_user(Extension(user): Extension<AuthUser>) -> axum::Json<serde_json:
     use serde_json::json; axum::Json(json!({"user_id": user.user_id, "role": user.role}))
 }
 
-pub fn create_auth_routes() -> Router<SharedConnection> {
+pub fn create_auth_routes() -> Router<SharedDatabase> {
     Router::new()
         .route("/auth/register", post(register))
         .route("/auth/login", post(login))

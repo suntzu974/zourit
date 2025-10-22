@@ -19,11 +19,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let db_path = env::var("DATABASE_PATH").unwrap_or_else(|_| "zourit.db".into());
     let port = env::var("PORT").unwrap_or_else(|_| "3000".into());
     let addr = format!("0.0.0.0:{}", port);
-    let shared_conn = Database::create_shared_connection(&db_path).await?;
+    let shared_db = Database::create_shared_database(&db_path).await?;
     
     let app = routes::create_router()
         .layer(CorsLayer::permissive())
-        .with_state(shared_conn)
+        .with_state(shared_db)
         .into_make_service_with_connect_info::<SocketAddr>();
 
     let listener = tokio::net::TcpListener::bind(&addr).await?;

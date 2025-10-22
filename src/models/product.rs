@@ -1,4 +1,4 @@
-use libsql::Connection;
+use libsql::Database as LibSqlDatabase;
 use serde::{Deserialize, Serialize};
 use crate::repository::{Repository, Entity};
 use crate::database::DbResult;
@@ -39,7 +39,8 @@ impl Product {
         }
     }
 
-    pub async fn create_table(conn: &Connection) -> DbResult<()> {
+    pub async fn create_table(db: &LibSqlDatabase) -> DbResult<()> {
+        let conn = db.connect()?;
         conn.execute(
             "CREATE TABLE IF NOT EXISTS product (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -53,7 +54,8 @@ impl Product {
         Ok(())
     }
 
-    pub async fn insert(&mut self, conn: &Connection) -> DbResult<()> {
+    pub async fn insert(&mut self, db: &LibSqlDatabase) -> DbResult<()> {
+        let conn = db.connect()?;
         conn.execute(
             "INSERT INTO product (name, description, price, quantity) VALUES (?1, ?2, ?3, ?4)",
             libsql::params![
@@ -67,7 +69,8 @@ impl Product {
         Ok(())
     }
 
-    pub async fn find_by_id(conn: &Connection, id: i32) -> DbResult<Option<Product>> {
+    pub async fn find_by_id(db: &LibSqlDatabase, id: i32) -> DbResult<Option<Product>> {
+        let conn = db.connect()?;
         let mut rows = conn.query(
             "SELECT id, name, description, price, quantity FROM product WHERE id = ?1",
             [libsql::Value::from(id)]
@@ -86,7 +89,8 @@ impl Product {
         }
     }
 
-    pub async fn find_all(conn: &Connection) -> DbResult<Vec<Product>> {
+    pub async fn find_all(db: &LibSqlDatabase) -> DbResult<Vec<Product>> {
+        let conn = db.connect()?;
         let mut rows = conn.query(
             "SELECT id, name, description, price, quantity FROM product",
             ()
@@ -105,8 +109,8 @@ impl Product {
         Ok(products)
     }
 
-    pub async fn update(conn: &Connection, id: i32, update_data: UpdateProduct) -> DbResult<Option<Product>> {
-        if let Some(mut product) = Self::find_by_id(conn, id).await? {
+    pub async fn update(db: &LibSqlDatabase, id: i32, update_data: UpdateProduct) -> DbResult<Option<Product>> {
+        if let Some(mut product) = Self::find_by_id(db, id).await? {
             if let Some(name) = update_data.name {
                 product.name = name;
             }
@@ -120,6 +124,7 @@ impl Product {
                 product.quantity = quantity;
             }
 
+            let conn = db.connect()?;
             conn.execute(
                 "UPDATE product SET name = ?1, description = ?2, price = ?3, quantity = ?4 WHERE id = ?5",
                 libsql::params![
@@ -137,7 +142,8 @@ impl Product {
         }
     }
 
-    pub async fn delete(conn: &Connection, id: i32) -> DbResult<bool> {
+    pub async fn delete(db: &LibSqlDatabase, id: i32) -> DbResult<bool> {
+        let conn = db.connect()?;
         let rows_affected = conn.execute(
             "DELETE FROM product WHERE id = ?1",
             [libsql::Value::from(id)]
@@ -147,28 +153,28 @@ impl Product {
 }
 
 impl Repository<Product, CreateProduct, UpdateProduct> for Product {
-    async fn create_table(conn: &Connection) -> DbResult<()> {
-        Product::create_table(conn).await
+    async fn create_table(db: &LibSqlDatabase) -> DbResult<()> {
+        Product::create_table(db).await
     }
 
-    async fn insert(&mut self, conn: &Connection) -> DbResult<()> {
-        self.insert(conn).await
+    async fn insert(&mut self, db: &LibSqlDatabase) -> DbResult<()> {
+        self.insert(db).await
     }
 
-    async fn find_by_id(conn: &Connection, id: i32) -> DbResult<Option<Product>> {
-        Product::find_by_id(conn, id).await
+    async fn find_by_id(db: &LibSqlDatabase, id: i32) -> DbResult<Option<Product>> {
+        Product::find_by_id(db, id).await
     }
 
-    async fn find_all(conn: &Connection) -> DbResult<Vec<Product>> {
-        Product::find_all(conn).await
+    async fn find_all(db: &LibSqlDatabase) -> DbResult<Vec<Product>> {
+        Product::find_all(db).await
     }
 
-    async fn update(conn: &Connection, id: i32, data: UpdateProduct) -> DbResult<Option<Product>> {
-        Product::update(conn, id, data).await
+    async fn update(db: &LibSqlDatabase, id: i32, data: UpdateProduct) -> DbResult<Option<Product>> {
+        Product::update(db, id, data).await
     }
 
-    async fn delete(conn: &Connection, id: i32) -> DbResult<bool> {
-        Product::delete(conn, id).await
+    async fn delete(db: &LibSqlDatabase, id: i32) -> DbResult<bool> {
+        Product::delete(db, id).await
     }
 }
 

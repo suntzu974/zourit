@@ -5,7 +5,7 @@ use axum::{
     Form,
 };
 use serde::Deserialize;
-use crate::database::SharedConnection;
+use crate::database::SharedDatabase;
 use askama::Template;
 use rand::distributions::{Alphanumeric, DistString};
 
@@ -31,9 +31,10 @@ fn find_cookie(cookies: &str, name: &str) -> Option<String> {
 }
 
 pub async fn list_users_html(
-    State(conn): State<SharedConnection>,
+    State(db): State<SharedDatabase>,
     headers: HeaderMap,
 ) -> Result<Response, StatusCode> {
+    let conn = db.connect().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let mut rows = conn.query("SELECT id, username, role FROM user ORDER BY id", ()).await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     
@@ -68,7 +69,7 @@ pub async fn list_users_html(
 }
 
 pub async fn promote_user(
-    State(conn): State<SharedConnection>,
+    State(db): State<SharedDatabase>,
     Path(id): Path<i32>,
     headers: HeaderMap,
     Form(form): Form<PromoteForm>
@@ -80,6 +81,7 @@ pub async fn promote_user(
     let cookie_token = find_cookie(cookie_header, "csrf_token").ok_or(StatusCode::FORBIDDEN)?;
     if cookie_token != form.csrf_token { return Err(StatusCode::FORBIDDEN); }
 
+    let conn = db.connect().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     conn.execute(
         "UPDATE user SET role = ?1 WHERE id = ?2",
         libsql::params![form.role.clone(), id]

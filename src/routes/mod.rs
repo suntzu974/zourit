@@ -5,7 +5,7 @@ use askama::Template;
 use axum::{Router, Json, routing::{get, post}, response::Html, extract::Query};
 use serde_json::{json, Value};
 use std::collections::HashMap;
-use crate::database::SharedConnection;
+use crate::database::SharedDatabase;
 use crate::templates::IndexTemplate;
 use crate::handlers::admin_handler::{list_users_html, promote_user};
 use crate::middleware::admin_middleware;
@@ -29,7 +29,7 @@ async fn index(Query(params): Query<HashMap<String, String>>) -> Result<Html<Str
     }
 }
 
-pub fn create_router() -> Router<SharedConnection> {
+pub fn create_router() -> Router<SharedDatabase> {
     Router::new()
         .route("/", get(index))
     .route("/admin/users", get(list_users_html).route_layer(axum::middleware::from_fn(admin_middleware)))
