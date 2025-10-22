@@ -158,75 +158,41 @@ ALTER TABLE product ADD COLUMN sku TEXT;
 CREATE INDEX IF NOT EXISTS idx_product_sku ON product(sku);
 ```
 
-## Database Replication
+## Database Configuration
 
-This project uses **LibSQL** with embedded replica support for local+cloud sync.
+This project uses **LibSQL** for database connectivity with two modes:
 
 ### Configuration Modes
 
-#### 1. Local Only (Development)
+#### 1. Remote Mode (Production - Current)
 ```env
-DATABASE_PATH=zourit.db
-# Leave TURSO_* variables commented or unset
-```
-- All data stored locally
-- No cloud sync
-- Fast, offline capable
-
-#### 2. Embedded Replica (Production)
-```env
-DATABASE_PATH=zourit.db
 TURSO_DATABASE_URL=libsql://your-database.turso.io
 TURSO_AUTH_TOKEN=your_token_here
-SYNC_INTERVAL_SECONDS=60
 ```
-- **Reads**: Instant from local file (no network latency)
-- **Writes**: Committed locally, then synced to Turso in background
-- **Initial sync**: Downloads latest data on startup
-- **Periodic sync**: Background task syncs every N seconds (default: 60)
-- **Automatic failover**: Continues working offline if Turso unavailable
+- Direct connection to Turso cloud database
+- All operations go through network
+- Centralized data, no local storage
+- Immediate consistency across all instances
+- Requires network connectivity
+
+#### 2. Local Mode (Development)
+```env
+# Comment out TURSO_* variables
+DATABASE_PATH=zourit.db
+```
+- Uses local SQLite file
+- Offline development friendly
+- Fast for testing
+- No network required
 
 ### Benefits
 
-✅ **Performance**: Local reads/writes are lightning fast  
-✅ **Reliability**: Works offline, syncs when connection restored  
+✅ **Centralized Data**: Single source of truth in Turso cloud  
+✅ **Immediate Consistency**: All instances see changes instantly  
 ✅ **Global Distribution**: Turso handles replication across regions  
 ✅ **Point-in-time Recovery**: Cloud backup with Turso's built-in features  
-✅ **Multi-instance**: Multiple servers can replicate from same Turso DB  
-✅ **Resilience**: App never fails if remote is unavailable
-
-### Offline Behavior
-
-**Si Turso n'est pas accessible :**
-
-1. **Au démarrage** 🚀
-   - Application démarre normalement
-   - Utilise les données locales existantes
-   - Warning affiché mais pas d'erreur fatale
-   - Retry automatique en arrière-plan
-
-2. **Pendant l'exécution** 💪
-   - Toutes les opérations CRUD continuent (local)
-   - Mode OFFLINE détecté et loggé
-   - Retry avec exponential backoff (évite de spammer)
-   - Performance identique (tout est local)
-
-3. **Reconnexion** ✅
-   - Détection automatique du retour réseau
-   - Synchronisation de toutes les modifications locales
-   - Retour transparent au mode normal
-   - Message de confirmation loggé
-
-**Garanties :**
-- ✅ Aucune perte de données
-- ✅ Aucune interruption de service
-- ✅ Performance constante
-- ✅ Reconnexion automatique
-
-**Voir documentation détaillée :**
-- 📖 [`docs/REPLICATION.md`](docs/REPLICATION.md) - Architecture complète
-- 🧪 [`docs/OFFLINE_TESTING.md`](docs/OFFLINE_TESTING.md) - Scénarios de test
-- ❓ [`docs/OFFLINE_BEHAVIOR.md`](docs/OFFLINE_BEHAVIOR.md) - Comportement en cas de panne  
+✅ **Scalability**: Turso handles connection pooling and optimization  
+✅ **Simple Architecture**: No local sync complexity  
 
 ### Setup Turso
 
