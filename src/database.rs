@@ -2,56 +2,93 @@ use libsql::{Connection, Database as LibSqlDatabase};
 use std::sync::Arc;
 use std::fs;
 use std::path::Path;
+use tokio::sync::RwLock;
+use tokio::time::{interval, Duration};
 
 pub type SharedConnection = Arc<Connection>;
 pub type DbResult<T> = Result<T, libsql::Error>;
 
-/// Database connection manager for LibSQL.
+/// Database state tracking for replica synchronization
+pub struct DatabaseState {
+    pub is_replica: bool,
+    pub sync_enabled: bool,
+}
+
+pub type SharedDatabaseState = Arc<RwLock<DatabaseState>>;
+
+/// Database connection manager for LibSQL with local replica and synchronization.
 /// 
 /// Configuration modes:
-/// - **Remote only**: Set TURSO_DATABASE_URL + TURSO_AUTH_TOKEN (production)
-///   - Direct connection to Turso cloud
-///   - All operations go through network
-///   - No local storage required
+/// - **Local replica with sync**: Set TURSO_DATABASE_URL + TURSO_AUTH_TOKEN + DATABASE_PATH
+///   - Creates local replica that syncs with remote Turso database
+///   - Fast local reads/writes with periodic synchronization
+///   - Best of both worlds: performance + data consistency
 /// 
-/// - **Local only**: Leave TURSO_* unset (development)
-///   - Uses local SQLite file specified by DATABASE_PATH
-///   - Offline development friendly
+/// - **Local only**: Leave TURSO_* unset, set DATABASE_PATH
+///   - Uses local SQLite file only
+///   - Development mode
 pub struct Database;
 
 impl Database {
-    pub async fn connect(database_path: &str) -> DbResult<(LibSqlDatabase, Connection)> {
+    pub async fn connect(database_path: &str) -> DbResult<(LibSqlDatabase, Connection, SharedDatabaseState)> {
         // Check if remote URL is configured
         let remote_url = std::env::var("TURSO_DATABASE_URL").ok();
         let auth_token = std::env::var("TURSO_AUTH_TOKEN").ok();
         
         match (remote_url, auth_token) {
             (Some(url), Some(token)) if !url.is_empty() && !token.is_empty() => {
-                // Direct remote connection to Turso (no local replica)
-                println!("[database] Connecting to remote Turso database: '{}'", url);
-                let db = libsql::Builder::new_remote(url, token)
+                // Local replica with remote sync
+                println!("[database] Creating local replica with sync to: '{}'", url);
+                let db = libsql::Builder::new_remote_replica(database_path, url, token)
                     .build()
                     .await?;
                 
                 let conn = db.connect()?;
-                println!("[database] Connected successfully to Turso");
                 
-                Ok((db, conn))
+                // Initial sync
+                println!("[database] Attempting initial sync...");
+                match db.sync().await {
+                    Ok(_) => println!("✅ [database] Initial sync successful"),
+                    Err(e) => {
+                        eprintln!("⚠️ [database] Initial sync failed: {}", e);
+                    }
+                }
+                
+                let state = Arc::new(RwLock::new(DatabaseState {
+                    is_replica: true,
+                    sync_enabled: true,
+                }));
+                
+                Ok((db, conn, state))
             }
             _ => {
-                // Local-only connection (fallback for development)
+                // Local-only connection (development mode)
                 println!("[database] Connecting to local database: '{}'", database_path);
                 let db = libsql::Builder::new_local(database_path).build().await?;
                 let conn = db.connect()?;
-                Ok((db, conn))
+                
+                let state = Arc::new(RwLock::new(DatabaseState {
+                    is_replica: false,
+                    sync_enabled: false,
+                }));
+                
+                Ok((db, conn, state))
             }
         }
     }
 
-    pub async fn create_shared_connection(database_path: &str) -> DbResult<SharedConnection> {
-        let (_db, conn) = Self::connect(database_path).await?;
+    pub async fn create_shared_connection(database_path: &str) -> DbResult<(SharedConnection, SharedDatabaseState)> {
+        let (db, conn, state) = Self::connect(database_path).await?;
         Self::create_tables(&conn).await?;
-        Ok(Arc::new(conn))
+        
+        // Start background sync task if replica is enabled
+        let state_clone = state.clone();
+        let db_clone = Arc::new(db); // Wrap database in Arc for sharing
+        tokio::spawn(async move {
+            start_sync_task(db_clone, state_clone).await;
+        });
+        
+        Ok((Arc::new(conn), state))
     }
 
     pub async fn create_tables(conn: &Connection) -> DbResult<()> {
@@ -112,5 +149,35 @@ impl Database {
             println!("[migrations] Applied {filename}");
         }
         Ok(())
+    }
+}
+
+/// Start background sync task for replica database
+async fn start_sync_task(db: Arc<LibSqlDatabase>, state: SharedDatabaseState) {
+    let sync_interval = std::env::var("SYNC_INTERVAL_SECONDS")
+        .unwrap_or_else(|_| "60".to_string())
+        .parse::<u64>()
+        .unwrap_or(60);
+    
+    let mut interval = interval(Duration::from_secs(sync_interval));
+    
+    loop {
+        interval.tick().await;
+        
+        let should_sync = {
+            let state_guard = state.read().await;
+            state_guard.is_replica && state_guard.sync_enabled
+        };
+        
+        if should_sync {
+            match db.sync().await {
+                Ok(_) => {
+                    println!("🔄 [database] Background sync completed successfully");
+                }
+                Err(e) => {
+                    eprintln!("❌ [database] Background sync failed: {}", e);
+                }
+            }
+        }
     }
 }
